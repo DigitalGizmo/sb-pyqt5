@@ -77,6 +77,11 @@ class Model(qtc.QObject):
         self.playRequestCorrectSignal.connect(self.playRequestCorrect)
         self.setTimeToEndSignal.connect(self.startEndTimer)
 
+        self.restartOnTimeoutTimer = qtc.QTimer()
+        self.restartOnTimeoutTimer.setSingleShot(True)
+        self.restartOnTimeoutTimer.timeout.connect(self.handleRestartOnTimeout)
+
+
         # signal calls timer directly
         # self.checkDualUnplugSignal.connect(self.dualUnplugTimer.start)
         # self.dualUnplugTimer.timeout.connect(self.checkDualUnplug)
@@ -87,8 +92,8 @@ class Model(qtc.QObject):
         self.setCallCompletedSignal.connect(self.handleSetCallCompleted)
         self.playFullWrongNumSignal.connect(self.handlePlayFullWrongNum)
         self.startPlayRequestCorrectThreadSignal.connect(self.handleStartPlayRequestCorrect)
-        self.restartOnTimeoutSignal.connect(self.handleRestartOnTimeout)
         self.restartOnEndTimeoutSignal.connect(self.handleRestartOnEndTimeout)
+        self.restartOnTimeoutSignal.connect(self.startRestartOnTimeoutTimer)
 
         self.reset()
 
@@ -146,6 +151,10 @@ class Model(qtc.QObject):
         # self.vlcPlayers[0].stop()
         self.vlcPlayer.stop()
 
+    def startRestartOnTimeoutTimer(self):
+        """Start the restart timeout timer in the main thread"""
+        self.restartOnTimeoutTimer.start(2000)
+
     def setPinIn(self, pinIdx, value):
         self.pinsIn[pinIdx] = value
 
@@ -197,6 +206,12 @@ class Model(qtc.QObject):
             self.phoneLine["unPlugStatus"] = self.OP_ONLY_IN_PROGRESS
             self.vlcEvent.event_attach(vlc.EventType.MediaPlayerEndReached, 
                 self.endOperatorOnlyHello) #  _currConvo, 
+        else: # This is a regular call and we need to be prepared for the sim being 
+            # abandoned, i.e. no one ever plugs in the callee
+            print(' - Regular call, attaching event in case we time out')
+            self.vlcEvent.event_attach(vlc.EventType.MediaPlayerEndReached, 
+            self.restartOnTimeout) 
+
 
         # Proceed with playing -- event may or may not be attached            
         self.vlcPlayer.play()
@@ -720,13 +735,19 @@ class Model(qtc.QObject):
 
     def restartOnTimeout(self, event):
         """VLC callback - must be thread-safe"""
-        print(' - auto starting reset (VLC callback)')
+        print(' - auto starting reset (VLC callback) -- calling restartOnTimeoutTimer')
         try:
             self.buzzEvents.event_detach(vlc.EventType.MediaPlayerEndReached)
         except:
             pass
         
-        # Emit signal to main thread
+        # Need delay befor sending restartOnTimeoutSignal
+        try:
+            self.vlcEvent.event_detach(vlc.EventType.MediaPlayerEndReached)
+        except:
+            pass
+        
+        # Emit signal to main thread to start the timer
         self.restartOnTimeoutSignal.emit()
 
     def handleRestartOnTimeout(self):
