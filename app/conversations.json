@@ -44,18 +44,7 @@
     "okTimeConvo": 0
   },  
   {
-    "callLabel": "index 4 call, 5 Emma calls Olive",
-    "caller": { "index": 3}, "callerLabel": " Emma 0 to operator ",
-    "callee":{"index": 6}, "calleeLabel": " Olive 4  ",
-    "helloFile": "8-Emma_Calls_Operator",
-    "convoFile": "9-Emma_Calls_Olive",
-    "retryAfterWrongFile": "Emma_WrongNumber_Caller",
-    "retryAfterWrongText": "No, that's not who I want, please connect me <br/> to the Powers' residence, number 72.",
-    "okTimeHello": 3000,
-    "okTimeConvo": 12630
-  },  
-  {
-    "callLabel": "index 5 , call 6 Tom to Doctor",
+    "callLabel": "new: index 4 , call 5 Tom to Doctor",
     "caller": { "index": 9}, "callerLabel": " Tom Libby 6",
     "callee":{"index": 4}, "calleeLabel": "  Dr Freeman 3",
     "helloFile": "10-Tom_Calls_Operator_2",
@@ -66,7 +55,7 @@
     "okTimeConvo": 5760
   },  
   {
-    "callLabel": "new: index 6 , call 7 Cleo to Mina",
+    "callLabel": "newer: index 5 , call 6 Cleo to Mina",
     "caller": { "index": 10}, "callerLabel": " Cleo Bryant",
     "callee":{"index": 2}, "calleeLabel": "  Mina",
     "helloFile": "11a-Cleo_Calls_Operator",
@@ -77,7 +66,7 @@
     "okTimeConvo": 10200
   },  
   {
-    "callLabel": "now: idx 7, call 8  Tom to Mrs White",
+    "callLabel": "new: idx 6, call 7  Tom to Mrs White",
     "caller": { "index": 9}, "callerLabel": " Tom Libby 6",
     "callee":{"index": 0}, "calleeLabel": " Mrs. White  1",
     "helloFile": "12-Tom_Calls_Operator_3",
@@ -86,6 +75,17 @@
     "retryAfterWrongText": "No, that's not Mrs. White, I need to speak to Mrs. White. Number 41.",
     "okTimeHello": 3000,
     "okTimeConvo": 15200
+  },  
+  {
+    "callLabel": "index 7 call, 8 Emma calls Olive",
+    "caller": { "index": 3}, "callerLabel": " Emma 0 to operator ",
+    "callee":{"index": 6}, "calleeLabel": " Olive 4  ",
+    "helloFile": "8-Emma_Calls_Operator",
+    "convoFile": "9-Emma_Calls_Olive",
+    "retryAfterWrongFile": "Emma_WrongNumber_Caller",
+    "retryAfterWrongText": "No, that's not who I want, please connect me <br/> to the Powers' residence, number 72.",
+    "okTimeHello": 3000,
+    "okTimeConvo": 12630
   },  
   {
     "callLabel": "index 8, call 9",
