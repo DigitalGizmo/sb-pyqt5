@@ -12,7 +12,7 @@
   },  
   {
     "callLabel": "index 1. call 2 Mina calls fire department",
-    "caller": {"index": 0}, "callerLabel": " Mina Newell 2 ",
+    "caller": {"index": 2}, "callerLabel": " Mina Newell 2 ",
     "callee":{"index": 11}, "calleeLabel": " Fire, Cheif Burns  7",
     "helloFile": "3-Mina_Calls_Operator",
     "convoFile": "4-Mina_Calls_Burns",
@@ -68,7 +68,7 @@
   {
     "callLabel": "new: index 6 , call 7 Cleo to Mina",
     "caller": { "index": 10}, "callerLabel": " Cleo Bryant",
-    "callee":{"index": 0}, "calleeLabel": "  Mina",
+    "callee":{"index": 2}, "calleeLabel": "  Mina",
     "helloFile": "11a-Cleo_Calls_Operator",
     "convoFile": "11b-Cleo_Calls_Mina",
     "retryAfterWrongFile": "Cleo_WrongNumber_Caller",
@@ -79,7 +79,7 @@
   {
     "callLabel": "now: idx 7, call 8  Tom to Mrs White",
     "caller": { "index": 9}, "callerLabel": " Tom Libby 6",
-    "callee":{"index": 2}, "calleeLabel": " Mrs. White  1",
+    "callee":{"index": 0}, "calleeLabel": " Mrs. White  1",
     "helloFile": "12-Tom_Calls_Operator_3",
     "convoFile": "13-Tom_Calls_Mrs.White",
     "retryAfterWrongFile": "Tom_WrongNumber_MrsWhite",

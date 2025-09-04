@@ -8,4 +8,4 @@ Charlie: Please connect me to the Powers's residence, number 72?
 
 3
 00:00:18,000 --> 00:00:24,000
-Charlie: Hello operator, are you there? Please get me number 72.
+Charlie: Hello operator, are you there? Please get Olive Powers at number 72.
