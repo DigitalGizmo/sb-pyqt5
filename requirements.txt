@@ -1,18 +1,33 @@
-Adafruit-Blinka==8.20.1
-adafruit-circuitpython-busdevice==5.2.6
+# Pinned to what the working sb-pyqt4 venv actually has installed
+# (verified 2026-09-11), not to the older, drifted pins this file used to carry.
+#
+# PyQt5 is deliberately absent: it is not pip-installable on this Pi.
+# Install it system-wide with apt and symlink it into the venv -- see pyqt5-install.md.
+#
+# Python 3.9.2 on Raspberry Pi OS 11 (Bullseye), Raspberry Pi 4.
+
+# --- Directly used by the app ---
 adafruit-circuitpython-mcp230xx==2.5.11
-adafruit-circuitpython-requests==2.0.1
-adafruit-circuitpython-typing==1.9.4
-Adafruit-PlatformDetect==3.48.0
+RPi.GPIO==0.7.1
+python-vlc==3.0.18122
+
+# --- Adafruit Blinka and its dependency chain ---
+Adafruit-Blinka==8.20.1
+Adafruit-PlatformDetect==3.79.0
 Adafruit-PureIO==1.1.11
+adafruit-circuitpython-busdevice==5.2.12
+adafruit-circuitpython-connectionmanager==3.1.4
+adafruit-circuitpython-requests==4.1.12
+adafruit-circuitpython-typing==1.12.1
+pyftdi==0.56.0
+pyserial==3.5
+pyusb==1.3.1
+sysv-ipc==1.1.0
+typing-extensions==4.14.0
+
+# --- Not used by this app; carried over from Adafruit's installer scripts.
+# --- Kept so a new venv reproduces the known-working one exactly.
 adafruit-python-shell==1.7.0
 args==0.1.0
 clint==0.5.1
-pyftdi==0.54.0
-pyserial==3.5
-python-vlc==3.0.18122
-pyusb==1.2.1
 rpi-ws281x==5.0.0
-RPi.GPIO==0.7.1
-sysv-ipc==1.1.0
-typing-extensions==4.7.1
