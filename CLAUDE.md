@@ -10,8 +10,9 @@ hear an incoming call, then plug real patch cords into real jacks to connect cal
 Audio and on-screen captions carry the story. Built and delivered 2024; current work is
 finishing defects and making it survive unattended operation.
 
-**This copy is the experimental one.** `../sb-pyqt4` is the operational install that still runs
-the exhibit — never edit it, and don't assume changes here have been applied there. The two
+**This copy runs the exhibit.** Since 2026-09-15 `switchboard.service` starts sb-pyqt5 on boot,
+so a change here goes live the next time the Pi restarts. `../sb-pyqt4` is the known-good
+fallback — never edit it; rolling back means pointing the service at it again. The two copies
 will diverge.
 
 Working notes live in Obsidian at

@@ -129,6 +129,11 @@ class MainWindow(qtw.QMainWindow):
         self.pending_interrupts = []  # Track interrupts that haven't been processed yet
         self.interrupt_lock = qtc.QMutex()  # Thread safety for pending_interrupts
 
+        # Jacks waiting to be checked after the bounce delay, in the order
+        # their interrupts arrived. A single pinFlag used to be overwritten
+        # when two plugs went in at once, so the first one was never handled.
+        self.pinsToCheck = []
+
         # Enhanced tracking for dual-unplug detection
         self.unplug_history = []  # Track all unplugs with timestamps
         self.last_unplug_time = None
@@ -203,6 +208,8 @@ class MainWindow(qtw.QMainWindow):
         print(" * Got to handleMisuse -- stopping")
         # Clear plugin history to prevent repeated triggers
         self.plugin_history.clear()
+        # Drop any jacks still waiting to be checked
+        self.pinsToCheck.clear()
         
         # Display message
         self.displayText("Looks like a confusing situation.\nPress the Start button to start over -- calmly -- one thing at a time!.")
@@ -313,7 +320,10 @@ class MainWindow(qtw.QMainWindow):
                 # Don't restart this interrupt checking if we're still
                 # in the pause part of bounce checking
                 if not self.just_checked:
-                    self.pinFlag = pin_flag
+                    # Queue this jack rather than overwriting the last one,
+                    # so two plugs going in together both get handled
+                    if pin_flag not in self.pinsToCheck:
+                        self.pinsToCheck.append(pin_flag)
                     self.plugEventDetected.emit()
                     # Mark this unplug as being processed
                     for u in self.unplug_history:
@@ -399,6 +409,7 @@ class MainWindow(qtw.QMainWindow):
 
         # Clear misuse detection state
         self.plugin_history.clear()
+        self.pinsToCheck.clear()
 
         # Reconfigure the MCP23017 interrupt system
         self.mcp.interrupt_configuration = 0x0000  # interrupt on any change
@@ -411,9 +422,12 @@ class MainWindow(qtw.QMainWindow):
     # Modified continueCheckPin to emit signal during active calls:
     def continueCheckPin(self):
         """Modified to detect ghost unplugs and handle dual-unplugs during active calls"""
-        # Not able to send param through timer, so pinFlag has been set globally
-        print(f" * In continue, pinFlag = {str(self.pinFlag)} " 
-            f"  * value: {str(self.pins[self.pinFlag].value)}")
+        # Not able to send param through timer, so take the next queued jack
+        if self.pinsToCheck:
+            self.pinFlag = self.pinsToCheck.pop(0)
+        print(f" * In continue, pinFlag = {str(self.pinFlag)} "
+            f"  * value: {str(self.pins[self.pinFlag].value)}"
+            f"  * still queued: {self.pinsToCheck}")
         
         # === GHOST UNPLUG DETECTION ===
         # When we process an unplug, check if any other "IN" pins are actually unplugged
@@ -437,7 +451,7 @@ class MainWindow(qtw.QMainWindow):
                     # Emit dual-unplug signal instead of single unplug
                     self.dualUnplugToHandle.emit(self.pinFlag, ghost_unplugs[0])
                     # Skip the normal single unplug processing
-                    qtc.QTimer.singleShot(150, self.delayedFinishCheck)
+                    self.scheduleNextCheck()
                     return
         
         # Check if there's another recent unplug we should know about
@@ -492,8 +506,17 @@ class MainWindow(qtw.QMainWindow):
                 else:
                     print(" ** got to pin true (changed to high), but not pin in")
 
+        self.scheduleNextCheck()
+
+    def scheduleNextCheck(self):
         # Delay setting just_checked to false in case the plug is wiggled
         qtc.QTimer.singleShot(150, self.delayedFinishCheck)
+
+        # If more jacks changed at the same time, give the next one its own
+        # settle window rather than dropping it
+        if self.pinsToCheck:
+            print(f" * {len(self.pinsToCheck)} more jack(s) queued: {self.pinsToCheck}")
+            self.bounceTimer.start(300)
 
     def delayedFinishCheck(self):
         # This just delay resetting just_checked
