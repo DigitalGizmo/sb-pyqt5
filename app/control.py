@@ -405,9 +405,8 @@ class MainWindow(qtw.QMainWindow):
         self.mcp.io_control = 0x44  # Interrupt as open drain and mirrored
         self.mcp.clear_ints()  # Final clear of interrupts
     
-        # self.setLED(0, True)          
-        # self.setLED(6, True)          
-        # self.setLED(2, True)          
+        # self.setLED(10, True)          
+        # self.setLED(11, True)          
 
     # Modified continueCheckPin to emit signal during active calls:
     def continueCheckPin(self):
@@ -454,24 +453,31 @@ class MainWindow(qtw.QMainWindow):
             print(' * awaiting restart')
         else:
             # Plug-in
-            if (self.pins[self.pinFlag].value == False): 
+            if (self.pins[self.pinFlag].value == False):
                 # grounded by tip, aka connected
                 """
                 False/grounded, then this event is a plug-in
                 """
 
-                # === MISUSE DETECTION - Track plug-ins ===
-                current_time = qtc.QTime.currentTime()
-                self.plugin_history.append((current_time, self.pinFlag))
-                
-                # Check for misuse
-                if self.checkForMisuse():
-                    # Misuse detected, don't process this plug-in
-                    return
+                # A pin the model already has in can't be plugged in again --
+                # this is the plug being wiggled. Without this guard the
+                # re-trigger is read as the second plug of the line, so the
+                # caller gets answered as its own wrong number.
+                if (self.model.getIsPinIn(self.pinFlag)):
+                    print(f" * pin {self.pinFlag} already in - wiggle ignored")
+                else:
+                    # === MISUSE DETECTION - Track plug-ins ===
+                    current_time = qtc.QTime.currentTime()
+                    self.plugin_history.append((current_time, self.pinFlag))
 
-                # Send pin index to model.py as an int 
-                # Model uses signals for LED, text and pinsIn to set here
-                self.plugInToHandle.emit(self.pinFlag)
+                    # Check for misuse
+                    if self.checkForMisuse():
+                        # Misuse detected, don't process this plug-in
+                        return
+
+                    # Send pin index to model.py as an int
+                    # Model uses signals for LED, text and pinsIn to set here
+                    self.plugInToHandle.emit(self.pinFlag)
             # Unplug
             else: # pin flag True, still, or again, high
                 # aka not connected
