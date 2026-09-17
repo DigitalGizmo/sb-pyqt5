@@ -26,7 +26,7 @@ class MainWindow(qtw.QMainWindow):
     dualUnplugToHandle = qtc.pyqtSignal(int, int)  # pin1, pin2
 
     # NEW: Thread-safe signal for GPIO interrupts
-    gpioInterruptSignal = qtc.pyqtSignal(list)  # Will carry the list of interrupt flags
+    gpioInterruptSignal = qtc.pyqtSignal(list, int)  # interrupt flags, plus a snapshot of all pins
     
     awaitingRestart = False
     interrupt = 17
@@ -134,6 +134,16 @@ class MainWindow(qtw.QMainWindow):
         # when two plugs went in at once, so the first one was never handled.
         self.pinsToCheck = []
 
+        # What the CHIP says is plugged in, which is not the same thing as
+        # model.pinsIn -- that records the plugs the game logic accepted. A
+        # jack rejected as the wrong number is physically in but not in the
+        # model, and comparing against the model would rediscover it forever.
+        self.pinsPhysical = [False] * 16
+        # Jacks we re-offered after a caller was accepted; they are not new
+        # plug-ins and must not count toward the misuse catcher
+        self.reofferedPins = set()
+        self.callerWasPlugged = False
+
         # Enhanced tracking for dual-unplug detection
         self.unplug_history = []  # Track all unplugs with timestamps
         self.last_unplug_time = None
@@ -187,6 +197,13 @@ class MainWindow(qtw.QMainWindow):
         GPIO.setup(self.interrupt, GPIO.IN, GPIO.PUD_UP)
         GPIO.add_event_detect(self.interrupt, GPIO.BOTH, callback=self.checkPin, bouncetime=50)
 
+        # Edge detection is armed now. If the INT line is still held low from
+        # startup settling, no edge can ever arrive and the first plug is lost,
+        # so release it here. Discarding these startup flags is intended.
+        stale = self.readInterrupts()
+        if stale:
+            print(f" * startup: released interrupt line, discarding stale flags {stale}")
+
     def checkForMisuse(self):
         """Check if user is plugging in too rapidly"""
         current_time = qtc.QTime.currentTime()
@@ -237,20 +254,27 @@ class MainWindow(qtw.QMainWindow):
         """
         try:
             # Read interrupt flags and pin values in the interrupt thread
-            interrupt_data = []
-            for pin_flag in self.mcp.int_flag:
-                # Read the pin value while we're in the interrupt thread
-                pin_value = self.pins[pin_flag].value
-                interrupt_data.append((pin_flag, pin_value))
+            interrupt_data, gpio_state = self.readInterrupts()
             
             # Emit signal to main thread with the data
             if interrupt_data:
-                self.gpioInterruptSignal.emit(interrupt_data)
+                self.gpioInterruptSignal.emit(interrupt_data, gpio_state)
         except Exception as e:
             print(f"Error in GPIO interrupt handler: {e}")
 
-    def handleGpioInterrupt(self, interrupt_data):
+    def handleGpioInterrupt(self, interrupt_data, gpio_state=-1):
         """Handle GPIO interrupts in the main thread where Qt operations are safe"""
+
+        # The chip interrupts on change from the previous value, and that
+        # baseline is reset when we read GPIO. A jack that changes between the
+        # flag being set and our read gets absorbed into the baseline: its new
+        # value is in the snapshot, but it never raises a flag of its own.
+        # Recover those by comparing the snapshot against what the model believes.
+        if gpio_state >= 0:
+            self.printSnapshot(gpio_state)
+            flagged = [pin for pin, _ in interrupt_data]
+            interrupt_data.extend(self.reconcileFromSnapshot(gpio_state, flagged))
+
         current_time = qtc.QTime.currentTime()
         unplugs_detected = []
         
@@ -380,15 +404,23 @@ class MainWindow(qtw.QMainWindow):
         self.awaitingRestart = False
         self.captionIndex = 0
 
+        # Set to input - later will get interrupt as well.
+        # This has to come BEFORE reading them below: the MCP powers up with
+        # its pull-ups off, so on a cold start the reads float and the model
+        # can begin life believing a jack is already plugged in.
+        for pinIndex in range(0, 16):
+            self.pins[pinIndex].direction = Direction.INPUT
+            self.pins[pinIndex].pull = Pull.UP
+
         # Synchronize pin states with model
         for pinIndex in range(0, 12):
             is_pin_in = self.pins[pinIndex].value == False
             self.model.setPinIn(pinIndex, is_pin_in)
-
-        # Set to input - later will get interrupt as well
-        for pinIndex in range(0, 16):
-            self.pins[pinIndex].direction = Direction.INPUT
-            self.pins[pinIndex].pull = Pull.UP
+            self.pinsPhysical[pinIndex] = is_pin_in
+        self.reofferedPins.clear()
+        self.callerWasPlugged = False
+        print(f" * reset: jacks seen as plugged in at start: "
+              f"{[p for p in range(12) if self.model.getIsPinIn(p)]}")
         
         # Set LEDs to output and off
         for pinIndex in range(0, 12):
@@ -477,17 +509,24 @@ class MainWindow(qtw.QMainWindow):
                 # this is the plug being wiggled. Without this guard the
                 # re-trigger is read as the second plug of the line, so the
                 # caller gets answered as its own wrong number.
+                self.pinsPhysical[self.pinFlag] = True
+
                 if (self.model.getIsPinIn(self.pinFlag)):
                     print(f" * pin {self.pinFlag} already in - wiggle ignored")
                 else:
-                    # === MISUSE DETECTION - Track plug-ins ===
-                    current_time = qtc.QTime.currentTime()
-                    self.plugin_history.append((current_time, self.pinFlag))
+                    # A jack we re-offered is not a new plug-in, so it must not
+                    # count toward the misuse catcher
+                    if self.pinFlag in self.reofferedPins:
+                        self.reofferedPins.discard(self.pinFlag)
+                    else:
+                        # === MISUSE DETECTION - Track plug-ins ===
+                        current_time = qtc.QTime.currentTime()
+                        self.plugin_history.append((current_time, self.pinFlag))
 
-                    # Check for misuse
-                    if self.checkForMisuse():
-                        # Misuse detected, don't process this plug-in
-                        return
+                        # Check for misuse
+                        if self.checkForMisuse():
+                            # Misuse detected, don't process this plug-in
+                            return
 
                     # Send pin index to model.py as an int
                     # Model uses signals for LED, text and pinsIn to set here
@@ -496,6 +535,8 @@ class MainWindow(qtw.QMainWindow):
             else: # pin flag True, still, or again, high
                 # aka not connected
                 # was this a legit unplug?
+                self.pinsPhysical[self.pinFlag] = False
+
                 if (self.model.getIsPinIn(self.pinFlag)):
                     # if this pin was in
                     print(f" * pin {self.pinFlag} was in - handleUnPlug")
@@ -518,13 +559,94 @@ class MainWindow(qtw.QMainWindow):
             print(f" * {len(self.pinsToCheck)} more jack(s) queued: {self.pinsToCheck}")
             self.bounceTimer.start(300)
 
+    def printSnapshot(self, gpio_state):
+        """Print what the chip says versus what the model believes"""
+        chip = [p for p in range(12) if not (gpio_state & (1 << p))]
+        model = [p for p in range(12) if self.model.getIsPinIn(p)]
+        print(f"   snapshot: chip says in {chip} | model says in {model}")
+
+    def reconcileFromSnapshot(self, gpio_state, flagged=()):
+        """Jacks whose real state disagrees with the model, as interrupt events.
+
+        A jack can change without ever raising a flag of its own: the chip
+        interrupts on change from a baseline that our GPIO read resets, and the
+        Pi's 50ms bouncetime can swallow the edge. The snapshot tells the truth
+        either way, so trust it and let the normal path sort out the meaning.
+        """
+        recovered = []
+        for pin in range(12):
+            if pin in flagged:
+                continue
+            pin_value = bool(gpio_state & (1 << pin))
+            physically_in = not pin_value
+            if physically_in != self.pinsPhysical[pin]:
+                print(f" ** pin {pin} really went {'in' if physically_in else 'out'} "
+                      f"but never raised a flag - recovering it")
+                self.pinsPhysical[pin] = physically_in
+                recovered.append((pin, pin_value))
+        return recovered
+
+    def readInterrupts(self):
+        """Which jacks raised an interrupt, with their current values.
+        INTF must be read before GPIO: reading GPIO clears the interrupt,
+        and the flags along with it. Returns [] when nothing is pending.
+        """
+        flags = self.mcp.int_flag
+        if not flags:
+            return [], -1
+        # One read of all 16 pins -- a consistent snapshot, and clears the interrupt
+        gpio_state = self.mcp.gpio
+        return [(pin, bool(gpio_state & (1 << pin))) for pin in flags], gpio_state
+
     def delayedFinishCheck(self):
         # This just delay resetting just_checked
         print(" * delayed finished check \n")
         self.just_checked = False
 
-        # Experimental
-        self.mcp.clear_ints()  # This seems to keep things fresh
+        # This used to be clear_ints(), which unstuck the interrupt line but
+        # threw away any flag still pending -- a plug whose edge the Pi missed
+        # was then lost for good. Dispatch pending flags instead.
+        pending, gpio_state = self.readInterrupts()
+        if pending:
+            print(f" ** delayed check found interrupt(s) the Pi never saw: {pending} - dispatching")
+            self.gpioInterruptSignal.emit(pending, gpio_state)
+            return
+
+        # No flags pending, but a jack can be in a state nobody ever reported,
+        # so always compare the real pins against the model here. This runs
+        # about 450ms after any plug activity, which is where a jack that went
+        # in alongside another one tends to get lost.
+        gpio_state = self.mcp.gpio
+        self.printSnapshot(gpio_state)
+        recovered = self.reconcileFromSnapshot(gpio_state)
+        if recovered:
+            # -1: already reconciled, don't do it again on the way through
+            self.gpioInterruptSignal.emit(recovered, -1)
+
+        self.checkReoffer()
+
+    def checkReoffer(self):
+        """Offer jacks that are already seated once a caller is accepted.
+
+        A visitor can plug the callee first, or plug a jack the logic rejects
+        while no call is up. Those stay physically in but outside the model.
+        The moment a caller is accepted they become meaningful, so hand them
+        back to the normal path -- once, on that transition, never in a loop.
+        """
+        caller_plugged = self.model.phoneLine["caller"]["isPlugged"]
+
+        if caller_plugged and not self.callerWasPlugged:
+            for pin in range(12):
+                if self.pinsPhysical[pin] and not self.model.getIsPinIn(pin):
+                    print(f" ** pin {pin} was already seated - re-offering it "
+                          f"now that a caller is on the line")
+                    self.reofferedPins.add(pin)
+                    if pin not in self.pinsToCheck:
+                        self.pinsToCheck.append(pin)
+            if self.pinsToCheck and not self.bounceTimer.isActive():
+                self.bounceTimer.start(300)
+
+        self.callerWasPlugged = caller_plugged
 
     def displayText(self, msg):
         self.label.setText(msg)        

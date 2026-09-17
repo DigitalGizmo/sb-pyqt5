@@ -7,13 +7,18 @@ Guidance for Claude Code working in this repository.
 "You Are the Operator" — a museum exhibit at the Maine State Museum simulating a 1950s
 telephone switchboard. A Raspberry Pi 4 drives a physical panel: visitors (mostly children)
 hear an incoming call, then plug real patch cords into real jacks to connect caller to callee.
-Audio and on-screen captions carry the story. Built and delivered 2024; current work is
-finishing defects and making it survive unattended operation.
+Audio and on-screen captions carry the story.
 
-**This copy runs the exhibit.** Since 2026-09-15 `switchboard.service` starts sb-pyqt5 on boot,
-so a change here goes live the next time the Pi restarts. `../sb-pyqt4` is the known-good
-fallback — never edit it; rolling back means pointing the service at it again. The two copies
-will diverge.
+**It has never run publicly.** The build shipped in 2024, but the museum has been closed about
+two years for a remodel, so no visitor has used it yet. The museum reopens in **October 2026**
+and the final version is due **2026-10-01**. Current work is pre-opening polish: finishing
+defects and making it survive unattended operation.
+
+**This is the copy that runs.** Since 2026-09-15 `switchboard.service` starts sb-pyqt5 on boot,
+so a change here takes effect the next time the Pi restarts. The Pi is on Don's bench, not in
+the gallery — there is no live exhibit to take down, so testing is cheap; the deliverable is the
+SD card he mails. `../sb-pyqt4` is the known-good fallback — never edit it; rolling back means
+pointing the service at it again. The two copies will diverge.
 
 Working notes live in Obsidian at
 `_Work/Maine/Maine-Switchboard/`, starting from `hub-switchboard.md`.
