@@ -559,9 +559,19 @@ class Model(qtc.QObject):
                 # Turn off caller LED
                 self.setLEDSignal.emit(self.phoneLine["caller"]["index"], False)
                 
-                # For caller unplug, we don't check time - always move to next
-                # signal calls callInitTimer which calls initiateCall	
-                self.setTimeToNextSignal.emit(1000)					
+                # Same rule as the callee above: unplugged early means replay
+                # this call, late enough means the call is done and we move on.
+                # This used to always emit setTimeToNextSignal, which starts
+                # callInitTimer -> initiateCall on the SAME currConvo, so a
+                # caller unplugged at the end replayed the call it just finished.
+                if self.shouldRetryCall(stopTime):
+                    print(f'   Caller unplugged early at {stopTime} - replaying this call')
+                    # signal calls callInitTimer which calls initiateCall
+                    self.setTimeToNextSignal.emit(1000)
+                else:
+                    print(f'   Caller unplugged at {stopTime} - call complete, moving on')
+                    # Direct call since we're in main thread
+                    self.handleSetCallCompleted()
             else: 
                 print('    This should not happen')
 
