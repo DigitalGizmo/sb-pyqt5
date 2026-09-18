@@ -112,6 +112,11 @@ class Model(qtc.QObject):
         self.currStopTime = 0
         self.currPersonIdx = 0
 
+        # Is a call actually asking to be connected? False during the welcome
+        # and after the last call, when "that's not the jack" makes no sense --
+        # nobody is asking for anything yet.
+        self.callInProgress = False
+
         self.incrementJustCalled = False
         # self.reCallLine = 0 # Workaround timer not having params
         self.silencedCallLine = 0 # Workaround timer not having params
@@ -138,6 +143,12 @@ class Model(qtc.QObject):
             self.callInitTimer.stop()
         if self.reconnectTimer.isActive():
             self.reconnectTimer.stop()
+        # These two both end in stopSimSignal. Left running, they fire after a
+        # Start press and stop the session the visitor just began.
+        if self.restartOnTimeoutTimer.isActive():
+            self.restartOnTimeoutTimer.stop()
+        if self.resetEndTimer.isActive():
+            self.resetEndTimer.stop()
         # if self.silencedCalTimer.isActive():
         #     self.silencedCalTimer.stop()
 
@@ -153,7 +164,11 @@ class Model(qtc.QObject):
 
     def startRestartOnTimeoutTimer(self):
         """Start the restart timeout timer in the main thread"""
-        self.restartOnTimeoutTimer.start(2000)
+        # The prompt itself already ran ~18-20s (buzzer or the caller's
+        # request). This is the extra grace period before giving up and
+        # stopping, so the total wait is roughly double the prompt.
+        # Anyone who finds it too long can press Start to restart.
+        self.restartOnTimeoutTimer.start(20000)
 
     def setPinIn(self, pinIdx, value):
         self.pinsIn[pinIdx] = value
@@ -170,6 +185,7 @@ class Model(qtc.QObject):
         self.incrementJustCalled = False
 
         if (self.currConvo < 9):
+            self.callInProgress = True
             print(f'Setting currCallerIndex to {conversations[self.currConvo]["caller"]["index"]}'
                   f' currConvo: {self.currConvo}')
             self.currCallerIndex =  conversations[self.currConvo]["caller"]["index"]
@@ -356,7 +372,9 @@ class Model(qtc.QObject):
         # Will be handled by "unPlug"
 
     def playFinished(self):
-        self.toneEvents.event_detach(vlc.EventType.MediaPlayerEndReached)         
+        # No more calls, so no more "that's not the jack"
+        self.callInProgress = False
+        self.toneEvents.event_detach(vlc.EventType.MediaPlayerEndReached)
 
         self.displayTextSignal.emit("Congratulations -- you finished your first shift as a switchboard operator!")
         # print(f"-- PlayFullConvo {_currConvo}, lineIndex: {lineIndex}")
@@ -391,6 +409,12 @@ class Model(qtc.QObject):
     def handlePlugIn(self, personIdx):
         """triggered by control.py
         """
+        # The visitor has responded, so call off the give-up timer. With a 20s
+        # grace period this matters: otherwise it fires mid-conversation and
+        # stops a call that was answered in time.
+        if self.restartOnTimeoutTimer.isActive():
+            print('   - response received, cancelling the timeout')
+            self.restartOnTimeoutTimer.stop()
         print(f' - Start handlePlugIn, personIdx: {personIdx}'
               f' is caller plugged: {self.phoneLine["caller"]["isPlugged"]}')
         # ********
@@ -454,7 +478,10 @@ class Model(qtc.QObject):
                 # self.prevLineInUse = self.whichLineInUse
             else:
                 print("wrong jack -- or wrong line")
-                self.displayTextSignal.emit("That's not the jack for the person who is asking you to connect!")
+                if self.callInProgress:
+                    self.displayTextSignal.emit("That's not the jack for the person who is asking you to connect!")
+                else:
+                    print("   (no call ringing yet - staying quiet)")
 
         #********
         # Other end of the line -- caller is plugged, so this must be the callee
