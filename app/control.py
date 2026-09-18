@@ -200,7 +200,7 @@ class MainWindow(qtw.QMainWindow):
         # Edge detection is armed now. If the INT line is still held low from
         # startup settling, no edge can ever arrive and the first plug is lost,
         # so release it here. Discarding these startup flags is intended.
-        stale = self.readInterrupts()
+        stale, _ = self.readInterrupts()
         if stale:
             print(f" * startup: released interrupt line, discarding stale flags {stale}")
 
@@ -460,7 +460,18 @@ class MainWindow(qtw.QMainWindow):
         print(f" * In continue, pinFlag = {str(self.pinFlag)} "
             f"  * value: {str(self.pins[self.pinFlag].value)}"
             f"  * still queued: {self.pinsToCheck}")
-        
+
+        if (self.awaitingRestart):
+            # Nothing is running, so take note of the jack but do nothing with
+            # it. This has to come BEFORE the dual-unplug detection below --
+            # that path emits to the model directly, and pulling two plugs
+            # while stopped used to restart the call without a Start press,
+            # leaving the sim ringing while every plug was ignored.
+            print(' * awaiting restart')
+            self.pinsPhysical[self.pinFlag] = (self.pins[self.pinFlag].value == False)
+            self.scheduleNextCheck()
+            return
+
         # === GHOST UNPLUG DETECTION ===
         # When we process an unplug, check if any other "IN" pins are actually unplugged
         if (self.pins[self.pinFlag].value == True and self.model.getIsPinIn(self.pinFlag)):
@@ -661,6 +672,20 @@ class MainWindow(qtw.QMainWindow):
     def startBlinker(self, personIdx):
         self.pinToBlink = personIdx
         self.blinkTimer.start(600)
+
+        # A new call is starting, and this call's caller may already be seated
+        # -- someone plugged in during the welcome, or left a plug in from
+        # before. Offer just that jack, once. Other seated jacks stay ignored,
+        # as they always have been; offering them would only produce a
+        # "wrong jack" message at the start of every call.
+        if self.pinsPhysical[personIdx] and not self.model.getIsPinIn(personIdx):
+            print(f" ** pin {personIdx} is already seated and is this call's "
+                  f"caller - offering it")
+            self.reofferedPins.add(personIdx)
+            if personIdx not in self.pinsToCheck:
+                self.pinsToCheck.append(personIdx)
+            if not self.bounceTimer.isActive():
+                self.bounceTimer.start(300)
 
     def stopBlinker(self):
         if self.blinkTimer.isActive():
