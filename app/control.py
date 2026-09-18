@@ -271,7 +271,6 @@ class MainWindow(qtw.QMainWindow):
         # value is in the snapshot, but it never raises a flag of its own.
         # Recover those by comparing the snapshot against what the model believes.
         if gpio_state >= 0:
-            self.printSnapshot(gpio_state)
             flagged = [pin for pin, _ in interrupt_data]
             interrupt_data.extend(self.reconcileFromSnapshot(gpio_state, flagged))
 
@@ -595,6 +594,9 @@ class MainWindow(qtw.QMainWindow):
                       f"but never raised a flag - recovering it")
                 self.pinsPhysical[pin] = physically_in
                 recovered.append((pin, pin_value))
+        if recovered:
+            # Only worth printing when something actually disagreed
+            self.printSnapshot(gpio_state)
         return recovered
 
     def readInterrupts(self):
@@ -628,7 +630,6 @@ class MainWindow(qtw.QMainWindow):
         # about 450ms after any plug activity, which is where a jack that went
         # in alongside another one tends to get lost.
         gpio_state = self.mcp.gpio
-        self.printSnapshot(gpio_state)
         recovered = self.reconcileFromSnapshot(gpio_state)
         if recovered:
             # -1: already reconciled, don't do it again on the way through
