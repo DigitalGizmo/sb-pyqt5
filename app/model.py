@@ -5,6 +5,14 @@ from PyQt5 import QtGui as qtg
 from PyQt5 import QtCore as qtc
 import vlc
 
+# Send every sound to the 3.5mm jack and the external amp. Left to defaults,
+# VLC under systemd can't reach the desktop's PulseAudio, falls back to ALSA,
+# and plays on whatever card is detected first at boot -- which can be the HDMI
+# display. Pinned by card NAME rather than number, since numbering can change.
+# plughw adds format conversion; the analog card has 8 subdevices, so the three
+# players below can hold it at the same time.
+VLC_ARGS = ['--aout=alsa', '--alsa-audio-device=plughw:CARD=Headphones,DEV=0']
+
 conversationsJsonFile = open('conversations.json')
 conversations = json.load(conversationsJsonFile)
 personsJsonFile = open('persons.json')
@@ -41,18 +49,18 @@ class Model(qtc.QObject):
     restartOnTimeoutSignal = qtc.pyqtSignal()
     restartOnEndTimeoutSignal = qtc.pyqtSignal()
 
-    buzzInstace = vlc.Instance()
+    buzzInstace = vlc.Instance(VLC_ARGS)
     buzzPlayer = buzzInstace.media_player_new()
     buzzPlayer.set_media(buzzInstace.media_new_path("/home/piswitch/Apps/sb-audio/buzzer.mp3"))
     buzzEvents = buzzPlayer.event_manager()
 
-    toneInstace = vlc.Instance()
+    toneInstace = vlc.Instance(VLC_ARGS)
     tonePlayer = toneInstace.media_player_new()
     toneEvents = tonePlayer.event_manager()
     toneMedia = toneInstace.media_new_path("/home/piswitch/Apps/sb-audio/outgoing-ring.mp3")
     tonePlayer.set_media(toneMedia)
 
-    vlcInstance = vlc.Instance()
+    vlcInstance = vlc.Instance(VLC_ARGS)
     vlcPlayer = vlcInstance.media_player_new()
     vlcEvent = vlcPlayer.event_manager()
 
