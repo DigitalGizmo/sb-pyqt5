@@ -10,9 +10,16 @@ hear an incoming call, then plug real patch cords into real jacks to connect cal
 Audio and on-screen captions carry the story.
 
 **It has never run publicly.** The build shipped in 2024, but the museum has been closed about
-two years for a remodel, so no visitor has used it yet. The museum reopens in **October 2026**
-and the final version is due **2026-10-01**. Current work is pre-opening polish: finishing
-defects and making it survive unattended operation.
+two years for a remodel, so no visitor has used it yet. Don is on site in person **2026-10-01**
+— the target for a final version, since it is the last hands-on chance — and the museum reopens
+**2026-10-22**. Current work is pre-opening polish: finishing defects and making it survive
+unattended operation.
+
+**Commits happen on the Pi, not here.** Writing `.git/index` over the mounted share fails
+intermittently (`unable to write new index file` / `Resource busy`) — it is the AFP layer, not
+git. Reading the repo from the Mac is fine. Write the commit message to `~/commit-msg.txt` on
+the Pi and let Don run `git add … && git commit -F ~/commit-msg.txt && git push` there; pushing
+needs the Pi's deploy key anyway.
 
 **This is the copy that runs.** Since 2026-09-15 `switchboard.service` starts sb-pyqt5 on boot,
 so a change here takes effect the next time the Pi restarts. The Pi is on Don's bench, not in

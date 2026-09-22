@@ -671,6 +671,23 @@ class MainWindow(qtw.QMainWindow):
         # print("blinking value: " + str(self.pinsLed[self.pinToBlink].value))
         
     def startBlinker(self, personIdx):
+        # A new call is starting, so make every LED agree with the line as the
+        # model sees it: lit only for jacks actually on the call. A jack left
+        # seated from the previous call could otherwise still be lit, telling
+        # the visitor a line is connected when it isn't. Note this keeps the
+        # callee lit in the caller-unplugged-early case, where it is still on
+        # the line waiting for the caller to come back.
+        line = self.model.phoneLine
+        onTheLine = set()
+        if line["caller"]["isPlugged"] and line["caller"]["index"] < 12:
+            onTheLine.add(line["caller"]["index"])
+        if line["callee"]["isPlugged"] and line["callee"]["index"] < 12:
+            onTheLine.add(line["callee"]["index"])
+        for pin in range(12):
+            self.setLED(pin, pin in onTheLine)
+        if onTheLine:
+            print(f" * new call: LEDs cleared except jacks on the line {sorted(onTheLine)}")
+
         self.pinToBlink = personIdx
         self.blinkTimer.start(600)
 
