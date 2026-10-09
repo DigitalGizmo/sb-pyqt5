@@ -2,7 +2,7 @@ import sys
 # import json
 from PyQt5 import QtWidgets as qtw
 from PyQt5 import QtCore as qtc
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtWidgets import QDesktopWidget
 from PyQt5.QtCore import QMutex, QMutexLocker
 
@@ -68,6 +68,14 @@ class MainWindow(qtw.QMainWindow):
         
         # Apply geometry
         self.setGeometry(0, y, screen_width, height)
+
+        # Park the pointer up and to the right, clear of the caption window
+        # along the bottom but not jammed into the corner, where it becomes
+        # invisible and hard to find again. Done here rather than with
+        # unclutter: that would be another package to install before the card
+        # is sealed, and hiding on idle made the cursor flash on and off as it
+        # kept coming back. A visitor has no mouse, so once parked it stays.
+        QCursor.setPos(int(screen_width * 0.75), int(screen_height * 0.25))
 
         # # Small text for debug
         # self.label.setFont(QFont('Arial',16))
