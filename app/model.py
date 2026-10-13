@@ -125,6 +125,12 @@ class Model(qtc.QObject):
         # nobody is asking for anything yet.
         self.callInProgress = False
 
+        # Is the pending callInitTimer a REPLAY of the current call, rather
+        # than the next one? Only a replay should be cancelled when the caller
+        # plugs back in; cancelling the gap before the next call would stall
+        # the simulation.
+        self.recallPending = False
+
         self.incrementJustCalled = False
         # self.reCallLine = 0 # Workaround timer not having params
         self.silencedCallLine = 0 # Workaround timer not having params
@@ -191,6 +197,8 @@ class Model(qtc.QObject):
 
     def initiateCall(self):
         self.incrementJustCalled = False
+        # Whatever was pending has now happened
+        self.recallPending = False
 
         if (self.currConvo < 9):
             self.callInProgress = True
@@ -446,8 +454,21 @@ class Model(qtc.QObject):
                 # Set this line in use only we have gotten this success
                 # self.whichLineInUse = lineIdx
 
+                # If this call was about to be re-rung because the caller had
+                # been unplugged, cancel that: the caller is back. Otherwise
+                # the timer fires a second later and starts the buzzer on top
+                # of the hello we are about to play -- which is what happened
+                # when a plug was pulled and pushed back inside a second.
+                # Only a replay is cancelled; the gap before the NEXT call has
+                # to be left alone or the simulation would stall here.
+                if self.recallPending:
+                    print('   - caller is back, cancelling the pending re-ring')
+                    if self.callInitTimer.isActive():
+                        self.callInitTimer.stop()
+                    self.recallPending = False
+
                 # See software app for extended debug message here
-                # Stop Buzzer. 
+                # Stop Buzzer.
                 self.buzzPlayer.stop()
                 # Blinker handled in control.py
                 self.blinkerStop.emit()
@@ -602,6 +623,7 @@ class Model(qtc.QObject):
                 if self.shouldRetryCall(stopTime):
                     print(f'   Caller unplugged early at {stopTime} - replaying this call')
                     # signal calls callInitTimer which calls initiateCall
+                    self.recallPending = True
                     self.setTimeToNextSignal.emit(1000)
                 else:
                     print(f'   Caller unplugged at {stopTime} - call complete, moving on')
@@ -637,6 +659,7 @@ class Model(qtc.QObject):
                         self.handleEndOperatorOnly()
                     else:
                         self.clearTheLine()
+                        self.recallPending = True
                         self.callInitTimer.start(1000)
                 elif (self.phoneLine["unPlugStatus"] == self.WRONG_NUM_IN_PROGRESS):
                     # Unplugging wrong num
@@ -700,6 +723,7 @@ class Model(qtc.QObject):
             # Display message
             self.displayTextSignal.emit("Both parties disconnected early - restarting call")
             # Restart the current call
+            self.recallPending = True
             self.setTimeToNextSignal.emit(1000)  # This will re-initiate current call
         else:
             print(f"  - Late dual unplug (time: {stopTime}), moving to next call")
