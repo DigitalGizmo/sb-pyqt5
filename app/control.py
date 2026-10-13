@@ -101,7 +101,12 @@ class MainWindow(qtw.QMainWindow):
         # === MISUSE DETECTION ===
         # Track plug-ins to detect rapid/chaotic usage
         self.plugin_history = []  # List of (time, pin) tuples
-        self.MISUSE_THRESHOLD = 4  # Number of plug-ins
+        # Raised from 4 on 2026-10-13: 4 was tripping on ordinary fumbling.
+        # Caller, wrong jack, correct callee is already 3, and one reseat
+        # makes 4 -- and testing a quick unplug twice tripped it too. This is
+        # a last resort for genuine chaos, a child jamming plugs in, which
+        # looks more like 8 in 12s. A false stop is worse than a late one.
+        self.MISUSE_THRESHOLD = 8  # Number of plug-ins
         self.MISUSE_WINDOW = 12000  # 12 seconds in milliseconds
         
         # Timer to periodically clean old plug-in history

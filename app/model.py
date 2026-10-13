@@ -167,6 +167,20 @@ class Model(qtc.QObject):
         #     self.silencedCalTimer.stop()
 
 
+    def stopTone(self):
+        """Stop the outgoing ring and drop its end-of-ring callback.
+
+        The ring runs on tonePlayer, not vlcPlayer, and its callback is what
+        starts the conversation when the ring finishes. Stopping only
+        vlcPlayer on an unplug left the ring playing to its end and then
+        starting the conversation with no jack in the board.
+        """
+        try:
+            self.toneEvents.event_detach(vlc.EventType.MediaPlayerEndReached)
+        except:
+            pass
+        self.tonePlayer.stop()
+
     def stopAllAudio(self):
         # if self.callInitTimer.isActive():
         #     self.callInitTimer.stop()
@@ -572,11 +586,14 @@ class Model(qtc.QObject):
             stopTime = self.vlcPlayer.get_time()
             # print(f'  -- stop time: {stopTime}')
 
-            # Stop the audio
+            # Stop the audio -- including the outgoing ring, which plays on a
+            # different player and would otherwise finish and start the
+            # conversation on its own
             self.vlcPlayer.stop()
+            self.stopTone()
             # Stop subtitles
             self.stopCaptionSignal.emit()
-            # Clear Transcript 
+            # Clear Transcript
             self.displayTextSignal.emit("Call disconnected..")
 
             self.currPersonIdx = personIdx
@@ -699,9 +716,10 @@ class Model(qtc.QObject):
         stopTime = self.vlcPlayer.get_time()
         print(f"  - Dual unplug at time: {stopTime}")
         
-        # Stop the audio immediately
+        # Stop the audio immediately, the outgoing ring included
         self.vlcPlayer.stop()
-        
+        self.stopTone()
+
         # Stop subtitles
         self.stopCaptionSignal.emit()
         
